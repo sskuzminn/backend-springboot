@@ -1,7 +1,7 @@
 package ru.kuzminss.tasklist.backendspringboot.controller;
 
 
-import org.springframework.core.env.ConfigurableEnvironment;
+
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -10,8 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.kuzminss.tasklist.backendspringboot.entity.Task;
-import ru.kuzminss.tasklist.backendspringboot.repo.TaskRepository;
 import ru.kuzminss.tasklist.backendspringboot.search.TaskSearchValues;
+import ru.kuzminss.tasklist.backendspringboot.service.TaskService;
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -20,28 +20,25 @@ import java.util.NoSuchElementException;
 @RequestMapping("/task") // базовый адрес
 public class TaskController {
 
-    private final TaskRepository taskRepository; // сервис для доступа к данным (напрямую к репозиториям не обращаемся)
+    private final TaskService taskService; // сервис для доступа к данным (напрямую к репозиториям не обращаемся)
 
 
     // автоматическое внедрение экземпляра класса через конструктор
     // не используем @Autowired ля переменной класса, т.к. "Field injection is not recommended "
-    public TaskController(TaskRepository taskRepository, ConfigurableEnvironment environment) {
-        this.taskRepository = taskRepository;
+    public TaskController(TaskService taskService) {
+        this.taskService = taskService;
     }
 
 
     // получение всех данных
     @GetMapping("/all")
     public ResponseEntity<List<Task>> findAll() {
-
-        return ResponseEntity.ok(taskRepository.findAll());
+        return ResponseEntity.ok(taskService.findAll());
     }
 
     // добавление
     @PostMapping("/add")
     public ResponseEntity<Task> add(@RequestBody Task task) {
-
-
 
         // проверка на обязательные параметры
         if (task.getId() != null && task.getId() != 0) {
@@ -54,7 +51,7 @@ public class TaskController {
             return new ResponseEntity("missed param: title", HttpStatus.NOT_ACCEPTABLE);
         }
 
-        return ResponseEntity.ok(taskRepository.save(task)); // возвращаем созданный объект со сгенерированным id
+        return ResponseEntity.ok(taskService.add(task)); // возвращаем созданный объект со сгенерированным id
 
     }
 
@@ -62,8 +59,6 @@ public class TaskController {
     // обновление
     @PutMapping("/update")
     public ResponseEntity<Task> update(@RequestBody Task task) {
-
-
 
         // проверка на обязательные параметры
         if (task.getId() == null || task.getId() == 0) {
@@ -77,7 +72,7 @@ public class TaskController {
 
 
         // save работает как на добавление, так и на обновление
-        taskRepository.save(task);
+        taskService.update(task);
 
         return new ResponseEntity(HttpStatus.OK); // просто отправляем статус 200 (операция прошла успешно)
 
@@ -89,8 +84,8 @@ public class TaskController {
     @DeleteMapping("/delete/{id}")
     public ResponseEntity delete(@PathVariable Long id) {
 
-        try {
-            taskRepository.deleteById(id);
+       try {
+            taskService.deleteById(id);
         } catch (EmptyResultDataAccessException e) {
             e.printStackTrace();
             return new ResponseEntity("id=" + id + " not found", HttpStatus.NOT_ACCEPTABLE);
@@ -106,7 +101,7 @@ public class TaskController {
         Task task = null;
 
         try {
-            task = taskRepository.findById(id).get();
+            task = taskService.findById(id);
         } catch (NoSuchElementException e) { // если объект не будет найден
             e.printStackTrace();
             return new ResponseEntity("id=" + id + " not found", HttpStatus.NOT_ACCEPTABLE);
@@ -120,7 +115,6 @@ public class TaskController {
     // TaskSearchValues содержит все возможные параметры поиска
     @PostMapping("/search")
     public ResponseEntity<Page<Task>> search(@RequestBody TaskSearchValues taskSearchValues) {
-
 
         // исключить NullPointerException
         String text = taskSearchValues.getTitle() != null ? taskSearchValues.getTitle() : null;
@@ -141,6 +135,8 @@ public class TaskController {
         Sort.Direction direction = sortDirection == null || sortDirection.trim().length() == 0 || sortDirection.trim().equals("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
 
 
+        // подставляем все значения
+
         // объект сортировки
         Sort sort = Sort.by(direction, sortColumn);
 
@@ -148,7 +144,7 @@ public class TaskController {
         PageRequest pageRequest = PageRequest.of(pageNumber, pageSize, sort);
 
         // результат запроса с постраничным выводом
-        Page result = taskRepository.findByParams(text, completed, priorityId, categoryId, pageRequest);
+        Page result = taskService.findByParams(text, completed, priorityId, categoryId, pageRequest);
 
         // результат запроса
         return ResponseEntity.ok(result);
